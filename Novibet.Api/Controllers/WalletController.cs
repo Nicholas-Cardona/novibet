@@ -2,30 +2,73 @@ using Microsoft.AspNetCore.Mvc;
 using Novibet.Data;
 using Novibet.Data.Entities;
 using Novibet.Domain.DTOs.Requests;
-using Novibet.Domain.Models;
+
+using Microsoft.EntityFrameworkCore;
+using Novibet.Api.Services;
+using System.ComponentModel.DataAnnotations;
 
 namespace Novibet.Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("/api/[controller]s")]
 public class WalletController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IWalletService _walletService;
 
-    public WalletController(AppDbContext context)
+    public WalletController(IWalletService walletService)
     {
-        _context = context;
+        _walletService = walletService;
     }
 
     [HttpPost(Name = "CreateWallet")]
-    public ActionResult<Wallet> Create([FromBody] CreateWalletRequest req)
+    public async Task<ActionResult<WalletEntity>> Create([FromBody] CreateWalletRequest req)
     {
-        var wallet = new WalletEntity () { Currency = req.Currency, Balance = req.Balance!.Value };
+        var wallet = await _walletService.CreateAsync(req);
 
-        _context.Wallets.Add(wallet);
-        _context.SaveChanges();
         return Ok(wallet);
     }
 
-    
+    [HttpGet("{id}", Name = "RetrieveWalletBalance")]
+    public async Task<ActionResult<decimal>> GetWalletBalance(long id, [FromQuery] string? currency)
+    {
+        try
+        {
+            var balance = await _walletService.GetWalletBalanceAsync(id, currency);
+            return Ok(balance);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/adjustbalance", Name = "UpdateWalletBalance")]
+    public async Task<ActionResult> AdjustBalance(long id, [Range(0, double.MaxValue)] decimal amount, string currency, [Required] UpdateFundsStrategy strategy)
+    {
+        try
+        {
+            Wallet wallet =  await _walletService.UpdateFundsAsync(id, amount, strategy);
+            return Ok(wallet);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch
+        {
+            return BadRequest("The operation failed");
+        }
+    }
 }

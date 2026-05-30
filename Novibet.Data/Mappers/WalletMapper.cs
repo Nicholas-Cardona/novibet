@@ -19,7 +19,6 @@ public static class WalletMapper
     {
         return new WalletEntity
         {
-            Id = domain.Id,
             Balance = domain.Balance,
             Currency = domain.Currency
         };

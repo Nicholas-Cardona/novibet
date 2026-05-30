@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Novibet.Domain.Models;
 
 namespace Novibet.Data.Entities;
 
@@ -12,5 +13,4 @@ public class CurrencyRateEntity
 
     public required DateTime CreatedOn { get; set; }
     public required DateTime UpdatedOn { get; set; }
-
 }
