@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Novibet.Api/Novibet.Api.csproj" />
+  <Project Path="Novibet.Data/Novibet.Data.csproj" />
+  <Project Path="Novibet.Domain/Novibet.Domain.csproj" />
+  <Project Path="Novibet.Worker/Novibet.Worker.csproj" />
+  <Project Path="Novibet.Xml/Novibet.Xml.csproj" />
+</Solution>

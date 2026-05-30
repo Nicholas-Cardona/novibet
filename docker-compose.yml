@@ -1,0 +1,16 @@
+services:
+
+  db:
+    container_name: postgres-novibet
+
+    image: postgres
+    restart: unless-stopped
+    shm_size: 128mb
+  
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: novibet_user
+      POSTGRES_DB: novibet
+
+    ports:
+      - 5432:5432

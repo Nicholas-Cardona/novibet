@@ -1,0 +1,10 @@
+.DS_Store
+CHECKLIST.md
+.vscode/
+
+*/bin/
+*/obj/
+*/log/
+
+
+.fake
