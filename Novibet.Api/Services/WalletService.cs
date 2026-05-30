@@ -5,6 +5,7 @@ using Novibet.Domain.DTOs.Requests;
 
 using Microsoft.EntityFrameworkCore;
 using Novibet.Data.Mappers;
+using Novibet.Domain.Enums;
 
 namespace Novibet.Api.Services;
 
@@ -43,34 +44,14 @@ public class WalletService : IWalletService
 
         if (wallet.Balance == 0) return 0;
 
-        var currencies = await _context.CurrencyRates
-            .Where(cr =>
-                cr.Currency == currency.ToUpper() ||
-                cr.Currency == wallet.Currency.ToUpper())
-            .ToListAsync();
-
-        CurrencyRateEntity? desiredCurrency = currencies.FirstOrDefault(cr => cr.Currency == currency.ToUpper());
-
-        if (desiredCurrency == null)
-        {
-            throw new ArgumentException($"Currency: {currency} is not supported.");
-        }
-
-        CurrencyRateEntity? walletCurrency = currencies.FirstOrDefault(cr => cr.Currency == wallet.Currency);
-
-        if (walletCurrency == null)
-        {
-            throw new ArgumentException($"Wallet Currency: {wallet.Currency} is not supported.");
-        }
-
-        decimal conversionRate = desiredCurrency.Rate / walletCurrency.Rate;
+        decimal conversionRate = await GetConversionRateAsync(wallet.Currency, currency);
 
         var balance = wallet.Balance * conversionRate;
 
         return balance;
     }
 
-    public async Task<Wallet> UpdateFundsAsync(long walletId, decimal amount, UpdateFundsStrategy strategy)
+    public async Task<Wallet> UpdateFundsAsync(long walletId, decimal amount, string currency, WalletTransactionType strategy)
     {
         WalletEntity? walletEntity = await _context.Wallets.FindAsync(walletId);
 
@@ -79,16 +60,19 @@ public class WalletService : IWalletService
             throw new KeyNotFoundException($"Wallet with id: {walletId} not found.");
         }
 
+        decimal conversionRate = await GetConversionRateAsync(walletEntity.Currency, currency);
+        decimal convertedAmount = amount * conversionRate;
+
         switch (strategy)
         {
-            case UpdateFundsStrategy.Add:
-                walletEntity.AddFunds(amount);
+            case WalletTransactionType.Add:
+                walletEntity.AddFunds(convertedAmount);
                 break;
-            case UpdateFundsStrategy.Subtract:
-                walletEntity.SubtractFunds(amount);
+            case WalletTransactionType.Subtract:
+                walletEntity.SubtractFunds(convertedAmount);
                 break;
-            case UpdateFundsStrategy.ForceSubtract:
-                walletEntity.ForceSubtractFunds(amount);
+            case WalletTransactionType.ForceSubtract:
+                walletEntity.ForceSubtractFunds(convertedAmount);
                 break;
             default:
                 throw new ArgumentException("Invalid update strategy.");
@@ -97,5 +81,38 @@ public class WalletService : IWalletService
         await _context.SaveChangesAsync();
 
         return WalletMapper.ToDomain(walletEntity);
+    }
+
+    private async Task<decimal> GetConversionRateAsync(string walletCurrency, string desiredCurrency)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(walletCurrency);
+        ArgumentException.ThrowIfNullOrEmpty(desiredCurrency);
+
+        var currencies = await _context.CurrencyRates
+            .Where(cr =>
+                cr.Currency == walletCurrency.ToUpper() ||
+                cr.Currency == desiredCurrency.ToUpper())
+            .ToListAsync();
+
+        CurrencyRateEntity? desiredCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == desiredCurrency.ToUpper());
+
+        if (desiredCurrencyEntity == null)
+        {
+            throw new ArgumentException($"Currency: {desiredCurrency} is not supported.");
+        }
+
+        CurrencyRateEntity? walletCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == walletCurrency);
+
+        if (walletCurrencyEntity == null)
+        {
+            throw new ArgumentException($"Wallet Currency: {walletCurrency} is not supported.");
+        }
+
+        if (walletCurrencyEntity.Rate == 0)
+        {
+            throw new DivideByZeroException("Wallet Currency Rate is zero");
+        }
+
+        return desiredCurrencyEntity.Rate / walletCurrencyEntity.Rate;
     }
 }

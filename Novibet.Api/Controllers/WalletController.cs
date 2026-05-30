@@ -3,9 +3,9 @@ using Novibet.Data;
 using Novibet.Data.Entities;
 using Novibet.Domain.DTOs.Requests;
 
-using Microsoft.EntityFrameworkCore;
 using Novibet.Api.Services;
 using System.ComponentModel.DataAnnotations;
+using Novibet.Domain.Enums;
 
 namespace Novibet.Api.Controllers;
 
@@ -47,11 +47,11 @@ public class WalletController : ControllerBase
     }
 
     [HttpPost("{id}/adjustbalance", Name = "UpdateWalletBalance")]
-    public async Task<ActionResult> AdjustBalance(long id, [Range(0, double.MaxValue)] decimal amount, string currency, [Required] UpdateFundsStrategy strategy)
+    public async Task<ActionResult> AdjustBalance(long id, [FromQuery] AdjustBalanceRequest req)
     {
         try
         {
-            Wallet wallet =  await _walletService.UpdateFundsAsync(id, amount, strategy);
+            Wallet wallet = await _walletService.UpdateFundsAsync(id, req.Amount, req.Currency, req.Strategy);
             return Ok(wallet);
         }
         catch (KeyNotFoundException ex)
@@ -60,7 +60,7 @@ public class WalletController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(ex);
+            return BadRequest(ex.Message);
         }
         catch (InvalidOperationException ex)
         {

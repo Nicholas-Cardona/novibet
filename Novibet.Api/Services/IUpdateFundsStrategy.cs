@@ -1,6 +1,6 @@
 namespace Novibet.Api.Services;
 
-public interface IUpdateFundsStrategy
+public interface IWalletTransactionType
 {
     Task<Wallet> UpdateFundsAsync(long walletId, decimal amount);
 }
