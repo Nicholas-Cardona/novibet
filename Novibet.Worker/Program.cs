@@ -28,13 +28,11 @@ internal class Program
             services.AddSingleton<IECBRatesParser, ECBRatesParser>();
             services.AddScoped<DbContext, AppDbContext>();
 
-
             services.AddQuartz(q =>
             {
                 var jobKey = new JobKey("UpdateDB");
                 q.AddJob<ExchangeRateJob>(opts =>
                 {
-                    Console.WriteLine("testin");
                     opts.WithIdentity(jobKey);
                 });
 

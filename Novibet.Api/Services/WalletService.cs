@@ -27,8 +27,8 @@ public class WalletService : IWalletService
         {
             throw new ArgumentException($"Currency: {req.Currency} is not supported.");
         }
-        
-        var wallet = new WalletEntity() { Currency = req.Currency, Balance = req.Balance!.Value };
+
+        var wallet = new WalletEntity() { Currency = req.Currency.ToUpper(), Balance = req.Balance!.Value };
 
         await _context.Wallets.AddAsync(wallet);
         await _context.SaveChangesAsync();

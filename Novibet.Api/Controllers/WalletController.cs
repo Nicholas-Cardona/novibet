@@ -23,9 +23,20 @@ public class WalletController : ControllerBase
     [HttpPost(Name = "CreateWallet")]
     public async Task<ActionResult<WalletEntity>> Create([FromBody] CreateWalletRequest req)
     {
+        try
+        {
         var wallet = await _walletService.CreateAsync(req);
-
         return Ok(wallet);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception)
+        {
+            return BadRequest("The operation failed");
+        }
+
     }
 
     [HttpGet("{id}", Name = "RetrieveWalletBalance")]
@@ -43,6 +54,10 @@ public class WalletController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(ex.Message);
+        }
+        catch (Exception)
+        {
+            return BadRequest("The operation failed");
         }
     }
 

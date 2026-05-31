@@ -7,8 +7,7 @@ services:
       dockerfile: Novibet.Api/Dockerfile
     ports:
       - "5001:5001"
-    environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=novibet;Username=novibet_user;Password=password"
+  
     depends_on:
       - postgres
       - worker
@@ -17,10 +16,10 @@ services:
     build:
       context: .
       dockerfile: Novibet.Worker/Dockerfile
-    environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=novibet;Username=novibet_user;Password=password"
+
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:16
@@ -29,10 +28,15 @@ services:
       POSTGRES_DB: novibet
       POSTGRES_USER: novibet_user
       POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novibet_user -d novibet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
       - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
 
-volumes:
-  pgdata:
+# volumes:
+#   pgdata:
