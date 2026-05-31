@@ -1,16 +1,38 @@
+
 services:
 
-  db:
-    container_name: postgres-novibet
-
-    image: postgres
-    restart: unless-stopped
-    shm_size: 128mb
-  
-    environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_USER: novibet_user
-      POSTGRES_DB: novibet
-
+  api:
+    build:
+      context: .
+      dockerfile: Novibet.Api/Dockerfile
     ports:
-      - 5432:5432
+      - "5001:5001"
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=novibet;Username=novibet_user;Password=password"
+    depends_on:
+      - postgres
+      - worker
+
+  worker:
+    build:
+      context: .
+      dockerfile: Novibet.Worker/Dockerfile
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=novibet;Username=novibet_user;Password=password"
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_DB: novibet
+      POSTGRES_USER: novibet_user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

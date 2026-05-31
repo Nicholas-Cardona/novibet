@@ -56,6 +56,12 @@ internal class Program
 
         }).Build();
 
+        using (var scope = builder.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Database.Migrate();
+        }
+
         await builder.RunAsync();
     }
 }
