@@ -25,6 +25,14 @@ namespace Novibet.Domain.Parsers;
             DateOnly date = DateOnly.FromDateTime(DateTime.Parse((string)dateAttribute));
 
 
+            yield return new CurrencyRate
+            {
+                Currency = "EUR",
+                Rate = 1,
+                Date = date
+            };
+
+
             foreach (var cube in currencyCubes)
             {
                 var currency = cube.Attribute("currency");

@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-azurelinux3.0 AS build
 WORKDIR /src
 
-COPY ../.. .
+COPY . .
 WORKDIR /src/Novibet.Worker
 
 RUN dotnet restore 
