@@ -1,13 +1,12 @@
-using Microsoft.Extensions.Hosting;
 using Quartz;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Novibet.Data;
 using Novibet.Domain.Interfaces;
 using Novibet.Xml.Clients;
 using Novibet.Domain.Services;
 using Novibet.Domain.Parsers;
 using Novibet.Worker;
+using StackExchange.Redis;
 
 
 internal class Program
@@ -27,6 +26,16 @@ internal class Program
             services.AddSingleton<IECBService, ECBService>();
             services.AddSingleton<IECBRatesParser, ECBRatesParser>();
             services.AddScoped<DbContext, AppDbContext>();
+
+            var cacheConfig = cxt.Configuration.GetConnectionString("Redis");
+            if (!string.IsNullOrWhiteSpace(cacheConfig))
+            {
+                services.AddSingleton<IConnectionMultiplexer>(sp =>
+                {
+                    return ConnectionMultiplexer.Connect(cacheConfig);
+                }
+                );
+            }
 
             services.AddQuartz(q =>
             {

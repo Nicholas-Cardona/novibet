@@ -12,11 +12,13 @@ public class ExchangeRateJob : IJob
 {
     private readonly IECBService _ecbService;
     private readonly AppDbContext _dbContext;
+    private readonly IDatabase? _redis;
 
-    public ExchangeRateJob(IECBService ecbService, AppDbContext dbContext)
+    public ExchangeRateJob(IECBService ecbService, AppDbContext dbContext, IConnectionMultiplexer? muxer)
     {
         _ecbService = ecbService;
         _dbContext = dbContext;
+        _redis = muxer?.GetDatabase();
     }
 
 
@@ -46,12 +48,11 @@ public class ExchangeRateJob : IJob
                 VALUES (source.""Currency"", source.""Date"", source.""Rate"", NOW(), NOW());
           ");
 
-        var muxer = ConnectionMultiplexer.Connect("localhost:6379");
-        var db = muxer.GetDatabase();
 
         var entries = rates.Select(r => new HashEntry(r.Currency, r.Rate.ToString())).ToArray();
 
-        await db.HashSetAsync("currency_rates",entries);
+        if (_redis is not null)
+            await _redis.HashSetAsync("currency_rates", entries);
     }
 
     private static bool IsValidCurrencyCode(string code)

@@ -13,22 +13,29 @@ public class WalletService : IWalletService
 {
 
     private readonly AppDbContext _context;
+    private readonly ICacheService? _cache;
 
-    public WalletService(AppDbContext context)
+    public WalletService(AppDbContext context, ICacheService? cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     public async Task<WalletEntity> CreateAsync(CreateWalletRequest req)
     {
-        var existingCurrency = await _context.CurrencyRates.AnyAsync(cr => cr.Currency == req.Currency.ToUpper());
 
-        if (!existingCurrency)
+        string currency = req.Currency.ToUpper();
+        decimal? cachedCurrency = _cache is not null ? await _cache.GetCurrencyRate(currency) : null;
+
+        bool validCurrency = cachedCurrency is not null
+            || await _context.CurrencyRates.AnyAsync(cr => cr.Currency == currency);
+
+        if (!validCurrency)
         {
-            throw new ArgumentException($"Currency: {req.Currency} is not supported.");
+            throw new ArgumentException($"Currency: {currency} is not supported.");
         }
 
-        var wallet = new WalletEntity() { Currency = req.Currency.ToUpper(), Balance = req.Balance!.Value };
+        var wallet = new WalletEntity() { Currency = currency, Balance = req.Balance!.Value };
 
         await _context.Wallets.AddAsync(wallet);
         await _context.SaveChangesAsync();
@@ -39,7 +46,6 @@ public class WalletService : IWalletService
 
     public async Task<decimal> GetWalletBalanceAsync(long id, [FromQuery] string? currency)
     {
-        Console.WriteLine($"Received request for wallet id: {id} with currency: {currency}");
         var wallet = await _context.Wallets.FindAsync(id);
 
         if (wallet == null)
@@ -95,13 +101,25 @@ public class WalletService : IWalletService
         ArgumentException.ThrowIfNullOrEmpty(walletCurrency);
         ArgumentException.ThrowIfNullOrEmpty(desiredCurrency);
 
+        string walletCurrUpper = walletCurrency.ToUpper();
+        string desiredCurrUpper = desiredCurrency.ToUpper();
+
+        if (walletCurrUpper == desiredCurrUpper) return 1;
+
+        if (_cache is not null)
+        {
+            decimal? conversionRate = await _cache.GetConversionRate(walletCurrency, desiredCurrency);
+
+            if (conversionRate is not null) return conversionRate.Value;
+        }
+
         var currencies = await _context.CurrencyRates
             .Where(cr =>
-                cr.Currency == walletCurrency.ToUpper() ||
-                cr.Currency == desiredCurrency.ToUpper())
+                cr.Currency == walletCurrUpper ||
+                cr.Currency == desiredCurrUpper)
             .ToListAsync();
 
-        CurrencyRateEntity? desiredCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == desiredCurrency.ToUpper());
+        CurrencyRateEntity? desiredCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == desiredCurrUpper);
 
         if (desiredCurrencyEntity == null)
         {

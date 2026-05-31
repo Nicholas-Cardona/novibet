@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Novibet.Api.Services;
 using Novibet.Data;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+string? cacheConfig = builder.Configuration.GetConnectionString("Redis");
+
+if (string.IsNullOrEmpty(cacheConfig)) throw new InvalidOperationException("NO REDIS");
+    builder.Services.AddSingleton<IConnectionMultiplexer>(cp => ConnectionMultiplexer.Connect(cacheConfig));
+
+builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 
 
