@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Novibet.Api.Services;
 using Novibet.Data;
@@ -15,11 +17,27 @@ builder.Services.AddSwaggerGen();
 string? cacheConfig = builder.Configuration.GetConnectionString("Redis");
 
 if (string.IsNullOrEmpty(cacheConfig)) throw new InvalidOperationException("NO REDIS");
-    builder.Services.AddSingleton<IConnectionMultiplexer>(cp => ConnectionMultiplexer.Connect(cacheConfig));
+builder.Services.AddSingleton<IConnectionMultiplexer>(cp => ConnectionMultiplexer.Connect(cacheConfig));
 
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("general", opt =>
+    {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    options.AddFixedWindowLimiter("heavy", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(5);
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 string? cs = builder.Configuration.GetConnectionString("Postgres");
 
@@ -41,6 +59,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

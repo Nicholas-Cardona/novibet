@@ -6,6 +6,7 @@ using Novibet.Domain.DTOs.Requests;
 using Novibet.Api.Services;
 using System.ComponentModel.DataAnnotations;
 using Novibet.Domain.Enums;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Novibet.Api.Controllers;
 
@@ -20,6 +21,7 @@ public class WalletController : ControllerBase
         _walletService = walletService;
     }
 
+    [EnableRateLimiting("general")]
     [HttpPost(Name = "CreateWallet")]
     public async Task<ActionResult<WalletEntity>> Create([FromBody] CreateWalletRequest req)
     {
@@ -39,6 +41,7 @@ public class WalletController : ControllerBase
 
     }
 
+    [EnableRateLimiting("general")]
     [HttpGet("{id}", Name = "RetrieveWalletBalance")]
     public async Task<ActionResult<decimal>> GetWalletBalance(long id, [FromQuery] string? currency)
     {
@@ -61,6 +64,7 @@ public class WalletController : ControllerBase
         }
     }
 
+    [EnableRateLimiting("general")]
     [HttpPost("{id}/adjustbalance", Name = "UpdateWalletBalance")]
     public async Task<ActionResult> AdjustBalance(long id, [FromQuery] AdjustBalanceRequest req)
     {
