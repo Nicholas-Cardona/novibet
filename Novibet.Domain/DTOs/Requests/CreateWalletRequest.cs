@@ -5,6 +5,7 @@ namespace Novibet.Domain.DTOs.Requests;
 public class CreateWalletRequest
 {
     [Required]
+    [Range(0, double.MaxValue, ErrorMessage = "Balance must be a non-negative value.")]
     public decimal? Balance { get; set; }
 
     [Required]

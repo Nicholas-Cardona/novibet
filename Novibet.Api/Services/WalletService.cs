@@ -21,6 +21,13 @@ public class WalletService : IWalletService
 
     public async Task<WalletEntity> CreateAsync(CreateWalletRequest req)
     {
+        var existingCurrency = await _context.CurrencyRates.AnyAsync(cr => cr.Currency == req.Currency.ToUpper());
+
+        if (!existingCurrency)
+        {
+            throw new ArgumentException($"Currency: {req.Currency} is not supported.");
+        }
+        
         var wallet = new WalletEntity() { Currency = req.Currency, Balance = req.Balance!.Value };
 
         await _context.Wallets.AddAsync(wallet);
