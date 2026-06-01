@@ -7,6 +7,8 @@ using Novibet.Domain.Services;
 using Novibet.Domain.Parsers;
 using Novibet.Worker;
 using StackExchange.Redis;
+using Novibet.Worker.Options;
+using Microsoft.Extensions.Options;
 
 
 internal class Program
@@ -27,18 +29,24 @@ internal class Program
             services.AddSingleton<IECBRatesParser, ECBRatesParser>();
             services.AddScoped<DbContext, AppDbContext>();
 
+            services.Configure<ExchangeRateJobOptions>(cxt.Configuration.GetSection("ExchangeRateJobOptions"));
+
             var cacheConfig = cxt.Configuration.GetConnectionString("Redis");
             if (!string.IsNullOrWhiteSpace(cacheConfig))
             {
-                
+
                 var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
 
                 services.AddSingleton<IConnectionMultiplexer>(multiplexer);
-               
+
             }
 
-            services.AddQuartz(q =>
+            services.AddQuartz((q, serviceProvider) =>
             {
+                var jobOptions = serviceProvider
+                            .GetRequiredService<IOptions<ExchangeRateJobOptions>>()
+                            .Value;
+
                 var jobKey = new JobKey("UpdateDB");
                 q.AddJob<ExchangeRateJob>(opts =>
                 {
@@ -49,8 +57,8 @@ internal class Program
                 {
                     opts.ForJob(jobKey)
                         .WithIdentity("UpdateDB-trigger")
-                        .StartAt(DateBuilder.FutureDate(5, IntervalUnit.Second))
-                        .WithSimpleSchedule(s => s.WithIntervalInSeconds(60)
+                        .StartAt(DateBuilder.FutureDate(jobOptions.StartDelaySeconds, IntervalUnit.Second))
+                        .WithSimpleSchedule(s => s.WithIntervalInSeconds(jobOptions.IntervalSeconds)
                         .RepeatForever());
                 });
             });
