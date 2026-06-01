@@ -17,8 +17,11 @@ builder.Services.AddSwaggerGen();
 string? cacheConfig = builder.Configuration.GetConnectionString("Redis");
 
 if (string.IsNullOrEmpty(cacheConfig)) throw new InvalidOperationException("NO REDIS");
-builder.Services.AddSingleton<IConnectionMultiplexer>(cp => ConnectionMultiplexer.Connect(cacheConfig));
 
+
+var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(multiplexer);
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
 

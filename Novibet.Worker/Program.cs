@@ -30,11 +30,11 @@ internal class Program
             var cacheConfig = cxt.Configuration.GetConnectionString("Redis");
             if (!string.IsNullOrWhiteSpace(cacheConfig))
             {
-                services.AddSingleton<IConnectionMultiplexer>(sp =>
-                {
-                    return ConnectionMultiplexer.Connect(cacheConfig);
-                }
-                );
+                
+                var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
+
+                services.AddSingleton<IConnectionMultiplexer>(multiplexer);
+               
             }
 
             services.AddQuartz(q =>

@@ -108,25 +108,29 @@ public class WalletService : IWalletService
 
         if (_cache is not null)
         {
-            decimal? conversionRate = await _cache.GetConversionRate(walletCurrency, desiredCurrency);
+            decimal? conversionRate = await _cache.GetConversionRate(walletCurrUpper, desiredCurrUpper);
 
             if (conversionRate is not null) return conversionRate.Value;
         }
 
-        var currencies = await _context.CurrencyRates
-            .Where(cr =>
-                cr.Currency == walletCurrUpper ||
-                cr.Currency == desiredCurrUpper)
-            .ToListAsync();
+        var currencies =await _context.CurrencyRates
+        .Where(cr => cr.Currency == walletCurrUpper || cr.Currency == desiredCurrUpper)
+        .GroupBy(cr => cr.Currency)
+        .Select(cr => cr
+            .OrderByDescending(cr => cr.UpdatedOn)
+            .FirstOrDefault())
+        .ToListAsync();
 
-        CurrencyRateEntity? desiredCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == desiredCurrUpper);
+        if (currencies is null) throw new InvalidDataException("No matching currencies");
+
+        CurrencyRateEntity? desiredCurrencyEntity = currencies.FirstOrDefault(cr => cr?.Currency == desiredCurrUpper);
 
         if (desiredCurrencyEntity == null)
         {
             throw new ArgumentException($"Currency: {desiredCurrency} is not supported.");
         }
 
-        CurrencyRateEntity? walletCurrencyEntity = currencies.FirstOrDefault(cr => cr.Currency == walletCurrency);
+        CurrencyRateEntity? walletCurrencyEntity = currencies.FirstOrDefault(cr => cr?.Currency == walletCurrUpper);
 
         if (walletCurrencyEntity == null)
         {
