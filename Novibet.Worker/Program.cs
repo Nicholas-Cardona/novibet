@@ -1,82 +1,100 @@
-using Quartz;
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Novibet.Data;
 using Novibet.Domain.Interfaces;
-using Novibet.Xml.Clients;
-using Novibet.Domain.Services;
 using Novibet.Domain.Parsers;
+using Novibet.Domain.Services;
 using Novibet.Worker;
-using StackExchange.Redis;
 using Novibet.Worker.Options;
-using Microsoft.Extensions.Options;
-
+using Novibet.Xml.Clients;
+using Quartz;
+using StackExchange.Redis;
 
 internal class Program
 {
     private static async Task Main(string[] args)
     {
-        var builder = Host.CreateDefaultBuilder()
-        .ConfigureServices((cxt, services) =>
-        {
-            services.AddDbContext<AppDbContext>(options =>
+        var host = Host.CreateDefaultBuilder(args)
+
+            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
+
+            .ConfigureServices((context, services) =>
             {
-                options.UseNpgsql(cxt.Configuration.GetConnectionString("Postgres"));
-            });
+                var configuration = context.Configuration;
 
-            services.AddHttpClient<IECBClient, ECBClient>();
+                services.AddDbContext<AppDbContext>(options =>
+                    options.UseNpgsql(configuration.GetConnectionString("Postgres")));
 
-            services.AddSingleton<IECBService, ECBService>();
-            services.AddSingleton<IECBRatesParser, ECBRatesParser>();
-            services.AddScoped<DbContext, AppDbContext>();
+                services.AddHttpClient<IECBClient, ECBClient>();
 
-            services.Configure<ExchangeRateJobOptions>(cxt.Configuration.GetSection("ExchangeRateJobOptions"));
-
-            var cacheConfig = cxt.Configuration.GetConnectionString("Redis");
-            if (!string.IsNullOrWhiteSpace(cacheConfig))
-            {
-
-                var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
-
-                services.AddSingleton<IConnectionMultiplexer>(multiplexer);
-
-            }
-
-            services.AddQuartz((q, serviceProvider) =>
-            {
-                var jobOptions = serviceProvider
-                            .GetRequiredService<IOptions<ExchangeRateJobOptions>>()
-                            .Value;
-
-                var jobKey = new JobKey("UpdateDB");
-                q.AddJob<ExchangeRateJob>(opts =>
+                services.AddQuartz((q, serviceProvider) =>
                 {
-                    opts.WithIdentity(jobKey);
+                    var jobOptions = serviceProvider
+                        .GetRequiredService<IOptions<ExchangeRateJobOptions>>()
+                        .Value;
+
+                    var jobKey = new JobKey("UpdateDB");
+
+                    q.AddJob<ExchangeRateJob>(opts =>
+                        opts.WithIdentity(jobKey));
+
+                    q.AddTrigger(opts =>
+                        opts.ForJob(jobKey)
+                            .WithIdentity("UpdateDB-trigger")
+                            .StartAt(DateBuilder.FutureDate(
+                                jobOptions.StartDelaySeconds,
+                                IntervalUnit.Second))
+                            .WithSimpleSchedule(s => s
+                                .WithIntervalInSeconds(jobOptions.IntervalSeconds)
+                                .RepeatForever()));
                 });
 
-                q.AddTrigger(opts =>
+                services.AddQuartzHostedService(opt =>
                 {
-                    opts.ForJob(jobKey)
-                        .WithIdentity("UpdateDB-trigger")
-                        .StartAt(DateBuilder.FutureDate(jobOptions.StartDelaySeconds, IntervalUnit.Second))
-                        .WithSimpleSchedule(s => s.WithIntervalInSeconds(jobOptions.IntervalSeconds)
-                        .RepeatForever());
+                    opt.WaitForJobsToComplete = true;
                 });
-            });
 
-            services.AddQuartzHostedService(opt =>
+                // Options
+                services.Configure<ExchangeRateJobOptions>(
+                    configuration.GetSection("ExchangeRateJobOptions"));
+            })
+
+
+            .ConfigureContainer<ContainerBuilder>((context, container) =>
             {
-                opt.WaitForJobsToComplete = true;
-            });
+                var configuration = context.Configuration;
 
+                // Services
+                container.RegisterType<ECBService>()
+                    .As<IECBService>()
+                    .SingleInstance();
 
-        }).Build();
+                container.RegisterType<ECBRatesParser>()
+                    .As<IECBRatesParser>()
+                    .InstancePerLifetimeScope();
 
-        using (var scope = builder.Services.CreateScope())
+                container.RegisterType<ExchangeRateJob>();
+
+                var cacheConfig = configuration.GetConnectionString("Redis");
+
+                if (!string.IsNullOrWhiteSpace(cacheConfig))
+                {
+                    var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
+
+                    container.RegisterInstance<IConnectionMultiplexer>(multiplexer);
+                }
+            })
+
+            .Build();
+
+        using (var scope = host.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Database.Migrate();
+            await db.Database.MigrateAsync();
         }
 
-        await builder.RunAsync();
+        await host.RunAsync();
     }
 }

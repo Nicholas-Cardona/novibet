@@ -1,4 +1,5 @@
-using System.Threading.RateLimiting;
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Novibet.Api.Services;
@@ -7,7 +8,15 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+
+builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
+
+builder.Host.ConfigureContainer<ContainerBuilder>(container =>
+{
+    container.RegisterType<CacheService>().As<ICacheService>().InstancePerLifetimeScope();  
+
+    container.RegisterType<WalletService>().As<IWalletService>().InstancePerLifetimeScope();
+});
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -22,8 +31,6 @@ if (string.IsNullOrEmpty(cacheConfig)) throw new InvalidOperationException("NO R
 var multiplexer = ConnectionMultiplexer.Connect(cacheConfig);
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(multiplexer);
-builder.Services.AddScoped<ICacheService, CacheService>();
-builder.Services.AddScoped<IWalletService, WalletService>();
 
 builder.Services.AddRateLimiter(options =>
 {
