@@ -15,12 +15,28 @@ public class WalletService : IWalletService
     private readonly AppDbContext _context;
     private readonly ICacheService? _cache;
 
+    /// <summary>
+    /// Provides wallet-related operations such as creation, balance retrieval,
+    /// and fund updates, including currency conversion support.
+    /// </summary>
+    /// <remarks>
+    /// This service relies on both database-stored currency rates and an optional
+    /// cache layer for performance optimization.
+    /// </remarks>
     public WalletService(AppDbContext context, ICacheService? cache)
     {
         _context = context;
         _cache = cache;
     }
 
+    /// <summary>
+    /// Creates a new wallet with an initial balance and validated currency.
+    /// </summary>
+    /// <param name="req">The wallet creation request containing currency and initial balance.</param>
+    /// <returns>The created <see cref="WalletEntity"/> persisted in the database.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the provided currency is not supported.
+    /// </exception>
     public async Task<WalletEntity> CreateAsync(CreateWalletRequest req)
     {
 
@@ -43,7 +59,17 @@ public class WalletService : IWalletService
         return wallet;
     }
 
-
+    /// <summary>
+    /// Retrieves the wallet balance, optionally converted to a target currency.
+    /// </summary>
+    /// <param name="id">The wallet identifier.</param>
+    /// <param name="currency">
+    /// Optional target currency. If null, the original wallet currency is used.
+    /// </param>
+    /// <returns>The wallet balance, optionally converted to the requested currency.</returns>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when the wallet with the specified ID does not exist.
+    /// </exception>
     public async Task<decimal> GetWalletBalanceAsync(long id, [FromQuery] string? currency)
     {
         var wallet = await _context.Wallets.FindAsync(id);
@@ -64,6 +90,21 @@ public class WalletService : IWalletService
         return balance;
     }
 
+    /// <summary>
+    /// Updates wallet funds by applying a transaction strategy (add, subtract, or force subtract),
+    /// optionally converting the input amount into the wallet's base currency.
+    /// </summary>
+    /// <param name="walletId">The wallet identifier.</param>
+    /// <param name="amount">The amount to apply to the wallet.</param>
+    /// <param name="currency">The currency of the provided amount.</param>
+    /// <param name="strategy">The transaction strategy defining how funds are applied.</param>
+    /// <returns>The updated wallet in domain model form.</returns>
+    /// <exception cref="KeyNotFoundException">
+    /// Thrown when the wallet with the specified ID does not exist.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when an invalid transaction strategy is provided or currency is unsupported.
+    /// </exception>
     public async Task<Wallet> UpdateFundsAsync(long walletId, decimal amount, string currency, WalletTransactionType strategy)
     {
         WalletEntity? walletEntity = await _context.Wallets.FindAsync(walletId);
@@ -96,6 +137,22 @@ public class WalletService : IWalletService
         return WalletMapper.ToDomain(walletEntity);
     }
 
+    /// <summary>
+    /// Resolves the conversion rate between two currencies using cache (if available)
+    /// or database-stored currency rates as a fallback.
+    /// </summary>
+    /// <param name="walletCurrency">The source currency code.</param>
+    /// <param name="desiredCurrency">The target currency code.</param>
+    /// <returns>The conversion rate between the two currencies.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when either currency is not supported.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when no currency data is available for conversion.
+    /// </exception>
+    /// <exception cref="DivideByZeroException">
+    /// Thrown when the wallet currency rate is zero.
+    /// </exception>
     private async Task<decimal> GetConversionRateAsync(string walletCurrency, string desiredCurrency)
     {
         ArgumentException.ThrowIfNullOrEmpty(walletCurrency);
@@ -113,7 +170,7 @@ public class WalletService : IWalletService
             if (conversionRate is not null) return conversionRate.Value;
         }
 
-        var currencies =await _context.CurrencyRates
+        var currencies = await _context.CurrencyRates
         .Where(cr => cr.Currency == walletCurrUpper || cr.Currency == desiredCurrUpper)
         .GroupBy(cr => cr.Currency)
         .Select(cr => cr
